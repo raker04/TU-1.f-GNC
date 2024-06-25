@@ -48,7 +48,7 @@ else
     w_ahrs_low=lowpass(w_ahrs, w_cutoff);
     w_ahrs_prev_low=lowpass(w_ahrs_prev, w_cutoff);
     w_dot=(w_ahrs_low-w_ahrs_prev_low)/dt;
-    a_ned=imu2ned(a_ahrs, DCM_ned_body, w_ahrs, w_dot, g_, d_cg_imu);
+    a_ned=imu2ned(a_ahrs, DCM_ned_body, w_dot, g_, d_cg_imu);
     v_ned=v_ned_prev+a_ned*dt;
     r_ned=r_ned_prev+v_ned_prev*dt+0.5*a_ned*dt^2;
     drift_scalar=r_ned(3)+h_pre;
@@ -90,18 +90,12 @@ function a_ned=imu2ned(a_, DCM_ned_body, w, w_dot, g_, d)
     a_ned=DCM_ned_body'*a_body;
 end
 
-function Q_product=q_product(q2, q1)
-    A = [q2(4), q2(3), -q2(2), q2(1);
-    -q2(3), q2(4), q2(1),  q2(2);
-    q2(2),  -q2(1), q2(4),  q2(3);
-    -q2(1), -q2(2), -q2(3), q2(4)];
-    Q_product = A * q1;
+function Q_product=q_product(q_1, q_2)
+    
 end
 
-function DCM=q_to_DCM(q)
-    DCM = [   q(1)^2-q(2)^2-q(3)^2+q(4)^2,    2 * (q(1) * q(2) + q(3) * q(4)),    2 * (q(1) * q(3) - q(2) * q(4));
-        2 * (q(1) * q(2) - q(3) * q(4)),-q(1)^2 + q(2)^2 - q(3)^2 + q(4)^2, 2 * (q(2) * q(3) + q(1) * q(4));
-        2 * (q(1) * q(3) + q(2) * q(4)),2 * (q(2) * q(3) - q(1) * q(4)),    -q(1)^2 - q(2)^2 + q(3)^2 + q(4)^2];
+function DCM=q_to_DCM(q_)
+    
 end
 
 function Apogee_est=apogee_est(r_, v_, g_, k)
