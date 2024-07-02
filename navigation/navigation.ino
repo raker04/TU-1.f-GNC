@@ -287,3 +287,48 @@ void Navigation::updateNavigation() {
 
   return;
 }
+
+ApogeeEstimate Navigation::getChudinovApogeeEst() {
+  float theta_0; // rad
+
+  float v1, v2, v3; // m/s
+
+  v1 = v_ENU_curr[0];
+  v2 = v_ENU_curr[1];
+  v3 = v_ENU_curr[2];
+
+  float dot, tmp;
+  dot = v1 * v1 + v2 * v2;
+  tmp = dot / sqrt(v1*v1 + v2*v2 + v3*v3) / sqrt(dot);
+  theta_0 = acos(tmp); // rad
+
+  float r3; // m
+  r3 = r_ENU_curr[2];
+  float rho = 1.225 * exp(-r3/10.4/1000); // kg/m3
+  float k = rho * C_D0 * S_ref /2 / m_dry / g;
+
+  float vsqured;
+  vsqured = v1*v1 + v2*v2 + v3*v3;
+
+  float H_apogee, H_local;
+  H_apogee = r3 + vsqured * (sin(theta_0))*(sin(theta_0)) / g / (2 + k * sin(theta_0) * vsqured); // m
+  H_local = H_apogee - r3;
+  
+  float T;
+  T = 2 * sqrt(2 * H_local / g);
+
+  float V_apogee;
+  
+  tmp = 1 + k*vsqured*(sin(theta_0)+cos(theta_0)*cos(theta_0)*log(tan(theta_0/2 + PI/4)));
+  V_apogee = sqrt(vsqured) * cos(theta_0) / sqrt(tmp);
+
+  float t_apogee;
+  t_apogee = (T - k * H_local * V_apogee) / 2;
+
+  ApogeeEstimate res;
+  res.H_apogee = H_apogee;
+  res.t_apogee = t_apogee;
+  res.V_apogee = V_apogee;
+
+  return res;
+}

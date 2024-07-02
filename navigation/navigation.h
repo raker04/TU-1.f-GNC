@@ -1,6 +1,12 @@
 #ifndef NAVIGATION_H
 #define NAVIGATION_H
 
+
+struct ApogeeEstimate {
+  float t_apogee; // sec
+  float H_apogee; // m
+  float V_apogee; // m/s
+};
 struct SensorData {
   // for bno055
   unsigned long t_AHRS; // ms, last AHRS aquired time
@@ -36,6 +42,7 @@ class Navigation {
   public:
     void updateSensorValue(SensorData newSensorData);
     void updateNavigation(); // update and estimate the best navigation solution
+    ApogeeEstimate getChudinovApogeeEst(); // estimate apogee height, time to apogee, and velocity at apogee using Chudinov eqn.
 
   private:
 
