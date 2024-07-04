@@ -1,111 +1,56 @@
 
 #include "navigation.h"
 
-DCM Navigation::quat_to_DCM(float* quat) {
-  DCM dcm;
-  float q0, q1, q2, q3;
-  float q0q0, q1q1, q2q2, q3q3, q0q1, q0q2, q0q3, q1q2, q1q3, q2q3;
+void Navigation::quat_to_DCM() {
+  // convert attitude quaternion to DCM
 
-  q0 = quat[3]; q1 = quat[0]; q2 = quat[1]; q3 = quat[2];
+  float q1, q2, q3, q4;
+  float q1_2, q2_2, q3_2, q4_2;
+  float q1q2, q1q3, q1q4, q2q3, q2q4, q3q4;
+
+  q1 = ahrs.quat_ENU_to_B(0); 
+  q2 = ahrs.quat_ENU_to_B(1); 
+  q3 = ahrs.quat_ENU_to_B(2); 
+  q4 = ahrs.quat_ENU_to_B(3);
 
   // for calculation
-  q0q0 = q0*q0; q1q1 = q1*q1; q2q2 = q2*q2; q3q3 = q3*q3;
-  q0q1 = q0*q1; q0q2 = q0*q2; q0q3 = q0*q3; q1q2 = q1*q2; q1q3 = q1*q3; q2q3 = q2*q3;
+  q1_2 = q1*q1; q2_2 = q2*q2; q3_2 = q3*q3; q4_2 = q4*q4;
+  q1q2 = q1*q2; q1q3 = q1*q3; q1q4 = q1*q4;
+  q2q3 = q2*q3; q2q4 = q2*q4; q3q4 = q3*q4; 
 
   // construct elements of DCM
-  dcm.a11 = q0q0 + q1q1 - q2q2 - q3q3;
-  dcm.a12 = 2*(q1q2 + q0q3);
-  dcm.a13 = 2*(q1q3 - q0q2);
+  ahrs.DCM_ENU_to_B(0,0) = q1_2 - q2_2 - q3_2 + q4_2;
+  ahrs.DCM_ENU_to_B(0,1) = 2*(q1q2 + q3q4);
+  ahrs.DCM_ENU_to_B(0,2) = 2*(q1q3 - q2q4);
 
-  dcm.a21 = 2*(q1q2 - q0q3);
-  dcm.a22 = q0q0 - q1q1 + q2q2 - q3q3;
-  dcm.a23 = 2*(q2q3 + q0q1);
+  ahrs.DCM_ENU_to_B(1,0) = 2*(q1q2 - q3q4);
+  ahrs.DCM_ENU_to_B(1,1) = -q1_2 + q2_2 - q3_2 + q4_2;
+  ahrs.DCM_ENU_to_B(1,2) = 2*(q2q3 + q1q4);
 
-  dcm.a31 = 2*(q1q3 + q0q2);
-  dcm.a32 = 2*(q2q3 - q0q1);
-  dcm.a33 = q0q0 - q1q1 - q2q2 + q3q3;
-
-  return dcm;
-
-}
-
-
-void Navigation::convert_imu_acc_to_body_acc() {
-  float cross_w_dot_r_IMU_b[3];
-  float cross_w_r_IMU_b[3];
-  float cross_w_cross_w_r_IMU_b[3];
-
-  crossProduct(angular_acc, r_IMU_b, cross_w_dot_r_IMU_b);
-  crossProduct(angular_rate_filtered, r_IMU_b, cross_w_r_IMU_b);
-  crossProduct(angular_rate_filtered, cross_w_r_IMU_b, cross_w_cross_w_r_IMU_b);
-
-  body_acc[0] = linear_acc[0] - cross_w_dot_r_IMU_b[0] - cross_w_cross_w_r_IMU_b[0];
-  body_acc[1] = linear_acc[1] - cross_w_dot_r_IMU_b[1] - cross_w_cross_w_r_IMU_b[1];
-  body_acc[2] = linear_acc[2] - cross_w_dot_r_IMU_b[2] - cross_w_cross_w_r_IMU_b[2];
+  ahrs.DCM_ENU_to_B(2,0) = 2*(q1q3 + q2q4);
+  ahrs.DCM_ENU_to_B(2,1) = 2*(q2q3 - q1q4);
+  ahrs.DCM_ENU_to_B(2,2) = -q1_2 - q2_2 + q3_2 + q4_2;
 
   return;
 }
 
 
+void Navigation::acc_imu_to_acc_cg() {
+  // acc_imu_B : linear acceleration from bno055 represented in body frame
+  Vector3f cross_w_dot_r_IMU_B;
+  Vector3f cross_w_r_IMU_B;
+  Vector3f cross_w_cross_w_r_IMU_B;
 
+  cross_w_dot_r_IMU_B = ahrs.angular_acc_B.cross(TU1f.r_IMU_B);
+  cross_w_r_IMU_B = ahrs.angular_rate_filtered_B.cross(TU1f.r_IMU_B);
+  cross_w_cross_w_r_IMU_B = ahrs.angular_rate_filtered_B.cross(cross_w_r_IMU_B);
 
-void Navigation::crossProduct(float v_A[], float v_B[], float c_P[]) {
-   c_P[0] = v_A[1] * v_B[2] - v_A[2] * v_B[1];
-   c_P[1] = -(v_A[0] * v_B[2] - v_A[2] * v_B[0]);
-   c_P[2] = v_A[0] * v_B[1] - v_A[1] * v_B[0];
-
-   return;
-}
-
-void Navigation::matrixVecMult(DCM T, float b[], float res[]) {
-  float t11, t12, t13, t21, t22, t23, t31, t32, t33;
-  float b1, b2, b3;
-
-  b1 = b[0];
-  b2 = b[1];
-  b3 = b[2];
-
-  t11 = T.a11;
-  t12 = T.a12;
-  t13 = T.a13;
-  t21 = T.a21;
-  t22 = T.a22;
-  t23 = T.a23;
-  t31 = T.a31;
-  t32 = T.a32;
-  t33 = T.a33;
-
-  res[0] = t11 * b1 + t12 * b2 + t13 * b3;
-  res[1] = t21 * b1 + t22 * b2 + t23 * b3;
-  res[2] = t31 * b1 + t32 * b2 + t33 * b3;
-
+  ahrs.acc_cg_B = ahrs.acc_imu_B - cross_w_dot_r_IMU_B - cross_w_cross_w_r_IMU_B;
   return;
 }
 
-void Navigation::matrixTranspose(DCM A, DCM B) {
-
-  B.a11 = A.a11;
-  B.a12 = A.a21;
-  B.a13 = A.a31;
-
-  B.a21 = A.a12;
-  B.a22 = A.a22;
-  B.a23 = A.a32;
-
-  B.a31 = A.a13;
-  B.a32 = A.a23;
-  B.a33 = A.a33;
-
-  return;
-}
-
-void Navigation::acc_body_to_ENU() {
-  DCM dcm_from_ENU_to_body, dcm_from_body_to_ENU;
-  
-  dcm_from_ENU_to_body = quat_to_DCM(quat_ENU_to_b); // convert quaternion to DCM
-  matrixTranspose(dcm_from_ENU_to_body, dcm_from_body_to_ENU); // dcm_from_body_to_ENU = dcm_from_ENU_to_body^T
-  matrixVecMult(dcm_from_body_to_ENU, body_acc, body_acc_ENU); // body_acc_ENU = dcm_from_body_to_ENU * body_acc
-  
+void Navigation::acc_B_to_ENU() {
+  ahrs.acc_cg_ENU = ahrs.DCM_ENU_to_B.transpose() * ahrs.acc_cg_B;
   return;
 }
 
@@ -118,10 +63,10 @@ float Navigation::lat_geocent_to_geodet(float geocent_lat_rad) {
   return geodet_lat_rad; // rad
 }
 
-void Navigation::lla_to_ecef() {
+void Navigation::geodetic_lla_to_ECEF() {
   float geodet_lat, lon, alt;
-  geodet_lat = pos_gps_lla[0]* PI/180; // rad
-  lon = pos_gps_lla[1]* PI/180; // rad
+  geodet_lat = pos_gps_lla[0]* DEG_TO_RAD; // rad
+  lon = pos_gps_lla[1]* DEG_TO_RAD; // rad
   alt = pos_gps_lla[2]; // m
 
   float f = fltn;
@@ -331,4 +276,32 @@ ApogeeEstimate Navigation::getChudinovApogeeEst() {
   res.V_apogee = V_apogee;
 
   return res;
+}
+
+void Navigation::initializeVehicleConfig(float m_dry, float C_D0, float d_ref, float r_IMU_b[]) {
+  // initialize vehicle configuration
+  // input
+  // m_dry: drymass, in kg
+  // C_D0: zero lift drag coefficient
+  // d_ref: reference diameter, in m
+  // r_IMU_bx, r_IMU_by, r_IMU_bz: location of imu w.r.t. cg, in m
+  
+  // example values
+  // m_dry = 3.7; // kg, dry mass of the vehicle after burnout
+  // C_D0 = 0.3; // -, zero lift drag coefficient of the vehicle
+  // d_ref = 0.104; // m, reference length (diameter of fuselage)
+  // r_IMU_b[3] = {0.25, 0, 0}; // m, cg to imu poistion vector (in body frame)
+
+  TU1f.m_dry = m_dry; // kg
+  TU1f.C_D0 = C_D0; // -
+  TU1f.d_ref = d_ref; // m
+  TU1f.S_ref = PI/4 * d_ref * d_ref; // m^2
+  TU1f.r_IMU_b << r_IMU_b[0], r_IMU_b[1], r_IMU_b[2]; // m
+  
+  return;
+}
+
+void Navigation::initializeLPFConfig(float alpha) {
+
+  return;
 }

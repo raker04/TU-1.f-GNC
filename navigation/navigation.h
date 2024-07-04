@@ -1,12 +1,54 @@
 #ifndef NAVIGATION_H
 #define NAVIGATION_H
 
+#include <ArduinoEigen.h>
+
+using Eigen::Matrix3f; // 3x3 matrix, double type element
+using Eigen::Vector3f; // 3x1 vector, double type element
+using Eigen::Vector4f; // 4x1 vector, double type element, for quaternion (qx, qy, qz, qw)
+
+struct LaunchSite {
+  float geodetic_lat; // deg, geodetic latitude
+  float lon; // deg, longitude
+  float alt; // m, geodetic altitude
+  Matrix3f DCM_ECEF_2_ENU; // DCM from ECEF to ENU at launch site
+  Vector3f r_ECEF; // m, launch site position in ECEF
+};
+struct EarthModel {
+  Vector3f g_ENU; // m/s^2, gravitational acc vec in ENU
+  const float g0 = 9.80665; // m/s^2, gravitational acc
+  const float a_e = 6378137; // m, equatorial radius of Earth
+  const float f = 1 / 298.257223563f; // -, flattening of Earth
+
+};
+struct LPFConfig {
+  float alpha; // -, y(n) = alpha * x(n) + (1-a) * y(n-1)
+};
+
+struct VehicleProperty {
+  // struct for TU-1.f config
+  float m_dry; // kg, dry mass of the vehicle after burnout
+  float C_D0; // -, zero lift drag coefficient of the vehicle
+  float d_ref; // m, reference length (diameter of fuselage)
+  float S_ref; // m^2, reference area for aerodynamic coeff.
+  Vector3f r_IMU_B; // m, cg to imu poistion vector (in body frame)
+};
+
+struct NavigationSol {
+  // the most recent navigation solution
+  Vector3f r_ENU; // m, position of the vehicle in ENU frame.
+  Vector3f v_ENU; // m/s, velocity of the vehicle in ENU frame.
+  Vector3f r_ENU_prev; // m, pos navigation solution in previous time step (in ENU frame)
+  Vector3f v_ENU_prev; // m/s, vel navigation solution in previous time step (in ENU frame)
+
+};
 
 struct ApogeeEstimate {
   float t_apogee; // sec
   float H_apogee; // m
   float V_apogee; // m/s
 };
+
 struct SensorData {
   // for bno055
   unsigned long t_AHRS; // ms, last AHRS aquired time
@@ -21,97 +63,82 @@ struct SensorData {
   // for bmp280
   unsigned long t_baro; // ms, last barometer aquried time
   float h_baro; // m, corrected altitude from bmp280 (h_measured - h_offset)
+};
 
-  // 시분할 삼센서 센서 융합을 통한 항법 최적해를 통한 모델로켓 탑재 검증을 통한 알고리즘 검증
+struct AHRSData {
+  unsigned long t_AHRS; // millisec, latest AHRS aquired time
+  unsigned long t_AHRS_prev; // millisec, AHRS aquired time at previous time step
+  unsigned int dt; // millisec, time step
+
+  Vector4f quat_ENU_to_B; // bno055 attitude quaternion from 'ENU' to 'initial body frame', [qx, qy, qz, qw]
+  Matrix3f DCM_ENU_to_B; // dcm from enu to B
+  
+  Vector3f acc_imu_B; // m/s^2, linear acceleration felt by imu module (need to subtract centrifugal force) (in body frame)
+  Vector3f acc_cg_B; // m/s^2, linear acceleration felt by the CG of the vehicle. (in body frame)
+  Vector3f acc_cg_ENU; // m/s^2, accelartion in ENU, for navigation
+
+  Vector3f angular_rate_B; // rad/s, x(n) body angular rate (in body frame)
+  Vector3f angular_rate_filtered_B; // rad/s, y(n) body angular rate LPF output (in body frame)
+  Vector3f angular_rate_filtered_prev_B; // rad/s, y(n-1) body angular rate in previous time step (in body frame)
+
+  Vector3f angular_acc_B; // rad/s^2, body angular acc (in body frame)
+};
+
+struct GPSData {
+  unsigned long t_GPS; // millisec, latest GPS aquired time
+  float gps_geodetic_lat; // deg, geodetic latitude from GPS
+  float gps_lon; // deg, longitude from GPS
+  float gps_geoidSeperation; // m, wgs geodetic altitude
+  float gps_alt_msl; // m, mean sea level altitude
+  // then, alt_wgs84 = alt_msl + geoidSeperation
+  float gps_alt_wgs84; // m, altitude from ellipsoid
+  Vector3f pos_gps_ECEF; // m, position from gps, in ECEF
+  Vector3f pos_gps_ENU; // m, position from gps, in ENU
 
 };
 
-struct DCM {
-  float a11;
-  float a12;
-  float a13;
-  float a21;
-  float a22;
-  float a23;
-  float a31;
-  float a32;
-  float a33;
+struct BMPData {
+  unsigned long t_baro; // millisec, latest BMP aquired time
+  float h_baro; // m, pressure altitude measured by BMP280.
 };
 
 class Navigation {
   public:
+    // public method
+    void initializeLPFConfig(float alpha);
+    void initializeVehicleConfig(float m_dry, float C_D0, float d_ref, float r_IMU_b[]);
+    void initializeEarthModel(float g, float a_e, float f);
+    
     void updateSensorValue(SensorData newSensorData);
     void updateNavigation(); // update and estimate the best navigation solution
     ApogeeEstimate getChudinovApogeeEst(); // estimate apogee height, time to apogee, and velocity at apogee using Chudinov eqn.
 
   private:
+    // attributes
 
-    DCM quat_to_DCM(float* quat);
-    void convert_imu_acc_to_body_acc();
-    void crossProduct(float v_A[], float v_B[], float c_P[]); // c_P = v_A x v_B
-    void matrixVecMult(DCM T, float b[], float res[]); // res = T * b (3x3 matrix and 3x1 vector multiplication)
-    void matrixTranspose(DCM A, DCM B); // B = A^T;
-    void acc_body_to_ENU();
+    // Configuration, should be updated by calling initialization method
+    LPFConfig lpf; // LPF parameters
+    EarthModel earth; // Universal Constant for Earth
+    VehicleProperty TU1f; // TU-1.f configuration
+    LaunchSite launch_site; // Launch Site Configuration
+
+    // below variables are updated real-time during flight.
+    AHRSData ahrs;
+    GPSData gps;
+    BMPData bmp;
+    NavigationSol nav_sol;
+
+    // private methods
+    void quat_to_DCM();
+    void acc_imu_to_acc_cg();
+    void acc_B_to_ENU();
+
     float lat_geocent_to_geodet(float geocent_lat_rad); // convert geocentric latitude to geodetic latitude
     void lla_to_ecef(); // convert gps lla to ecef
     void ecef_to_enu(); // calculate dcm for ecef to enu at launch site
 
   // def of body frame == bno055 body frame
 
-    // LPF parameters
-    const float alpha = 0.5; // y(n) = alpha * x(n) + (1-a) * y(n-1)
-
-
-    // Universal Constant
-    const float g_ENU[3] = {0, 0, -9.80665}; // m/s^2, gravitational acc vec in ENU
-    const float g = 9.80665; // m/s^2, gravitational acc
-    const float a_e = 6378137; // m, equatorial radius of Earth
-    const float fltn = 1 / 298.257223563f; // -, flattening of Earth
-
-    // TU-1.f configuration
-    const float m_dry = 3.7; // kg, dry mass of the vehicle after burnout
-    const float C_D0 = 0.3; // -, zero lift drag coefficient of the vehicle
-    const float d_ref = 104 * 0.001f; // m, reference length (diameter of fuselage)
-    const float S_ref = PI/4 * d_ref * d_ref; // m^2, reference area for aerodynamic coeff.
-    float r_IMU_b[3] = {0.25, 0, 0}; // m, cg to imu poistion vector (in body frame)
-
-    // Launch Site Configuration
-    float launch_site_lat_lon[2]; // (deg, deg), geodetic latitude and longitude of launch site (initialized after boot up)
-    DCM dcm_ecef_to_enu; // DCM from ECEF to ENU at launch site
-    float launch_site_ECEF[3]; // m, launch site position in ECEF
-
-    // below variables are updated real-time during flight.
-    unsigned long t_GPS; // millisec, latest GPS aquired time
-    unsigned long t_AHRS; // millisec, latest AHRS aquired time
-    unsigned long t_AHRS_prev; // millisec, AHRS aquired time at previous time step
-    unsigned long t_baro; // millisec, latest BMP aquired time
-    unsigned int dt; // millisec, time step
-
-    float quat_ENU_to_b[4]; // bno055 attitude quaternion from 'ENU' to 'initial body frame', [qx, qy, qz, qw]
-
-    float linear_acc[3]; // m/s^2, linear acceleration felt by imu module (need to subtract centrifugal force) (in body frame)
-    float body_acc[3]; // m/s^2, linear acceleration felt by the CG of the vehicle. (in body frame)
-    float body_acc_ENU[3]; // m/s^2, accelartion in ENU, for navigation
-
-    float angular_rate[3]; // rad/s, x(n) body angular rate (in body frame)
-    float angular_rate_filtered[3]; // rad/s, y(n) body angular rate LPF output (in body frame)
-    float angular_rate_filtered_prev[3]; // rad/s, y(n-1) body angular rate in previous time step (in body frame)
-    
-    float angular_acc[3]; // rad/s^2, body angular acc (in body frame)
-
-    float pos_gps_lla[3]; // position from gps: lon, lat, alt (deg, deg, m)
-    float pos_gps_ECEF[3]; // m, position from gps, in ECEF
-    float pos_gps_ENU[3]; // m, position from gps, in ENU
-
-    float r_ENU_prev[3]; // m, pos navigation solution in previous time step (in ENU frame)
-    float v_ENU_prev[3]; // m/s, vel navigation solution in previous time step (in ENU frame)
-
-    float r_ENU_curr[3]; // m, pos navigation solution in current time step (in ENU frame)
-    float v_ENU_curr[3]; // m/s, vel navigation solution in current time step (in ENU frame)
-
-    float h_baro; // m, pressure altitude measured by BMP280.
-    
-    float chamber_press; // barg, motor chamber pressure measured by pressure transducer.
-};
+    };
 
 #endif
