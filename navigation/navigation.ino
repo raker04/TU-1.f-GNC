@@ -150,7 +150,7 @@ void Navigation::updateBMPMeasurement(float t_ms, float p_baro_Pa) {
 }
 
 void Navigation::updateGPSMeasurement(float t_ms, float lat_deg, float lon_deg, float alt_orthometric_m, float geoid_separation_m) {
-  isGPSUpdated = (abs(t_ms - t_GPS_msec) > 100);
+  isGPSUpdated = (abs(t_ms - t_GPS_msec) > 50);
 
   t_GPS_msec = t_ms;
   lat_deg_body = lat_deg;
