@@ -152,6 +152,8 @@ void Navigation::updateBMPMeasurement(float t_ms, float p_baro_Pa) {
 void Navigation::updateGPSMeasurement(float t_ms, float lat_deg, float lon_deg, float alt_orthometric_m, float geoid_separation_m) {
   isGPSUpdated = (abs(t_ms - t_GPS_msec) > 50);
 
+  if (!isGPSUpdated) return; // if gps is not updated simply just return.
+
   t_GPS_msec = t_ms;
   lat_deg_body = lat_deg;
   lon_deg_body = lon_deg;
@@ -233,6 +235,24 @@ void Navigation::updateNavigation() {
   r_body_curr_ENU[2] = r_body_curr_ENU[2] - drift;
 
   return;
+}
+
+void Navigation::getPosENU_m(float pos_ENU[3]) {
+  pos_ENU[0] = r_body_curr_ENU[0];
+  pos_ENU[1] = r_body_curr_ENU[1];
+  pos_ENU[2] = r_body_curr_ENU[2];
+  return;
+}
+
+void Navigation::getVelENU_ms(float vel_ENU[3]) {
+  vel_ENU[0] = v_body_curr_ENU[0];
+  vel_ENU[1] = v_body_curr_ENU[1];
+  vel_ENU[2] = v_body_curr_ENU[2];
+  return;
+}
+
+float Navigation::getAltENU_m() {
+  return r_body_curr_ENU[2];
 }
 
 ApogeeEstimate Navigation::getChudinovApogeeEst() {
