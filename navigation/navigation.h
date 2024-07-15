@@ -10,16 +10,25 @@ using Eigen::Vector4f; // 4x1 vector, double type element, for quaternion (qx, q
 struct LaunchSite {
   float geodetic_lat; // deg, geodetic latitude
   float lon; // deg, longitude
-  float alt; // m, geodetic altitude
+
+  float geoid_seperation; // m, wgs geodetic altitude
+  float alt_msl; // m, mean sea level altitude
+  // then, alt_wgs84 = alt_msl + geoid_seperation
+  float alt_wgs84; // m, altitude from ellipsoid
+  
+  float p_launchsite; // Pa, atm measured at the launch site
+  
   Matrix3f DCM_ECEF_2_ENU; // DCM from ECEF to ENU at launch site
   Vector3f r_ECEF; // m, launch site position in ECEF
+
 };
 struct EarthModel {
   Vector3f g_ENU; // m/s^2, gravitational acc vec in ENU
   const float g0 = 9.80665; // m/s^2, gravitational acc
   const float a_e = 6378137; // m, equatorial radius of Earth
-  const float f = 1 / 298.257223563f; // -, flattening of Earth
-
+  const float f = 1 / 298.257223563; // -, flattening of Earth
+  const float b_e = a_e * (1 - f); // m
+  const float e_2 = 1 - b_e*b_e / a_e*a_e; // eccentricity squared
 };
 struct LPFConfig {
   float alpha; // -, y(n) = alpha * x(n) + (1-a) * y(n-1)
@@ -86,19 +95,20 @@ struct AHRSData {
 
 struct GPSData {
   unsigned long t_GPS; // millisec, latest GPS aquired time
-  float gps_geodetic_lat; // deg, geodetic latitude from GPS
-  float gps_lon; // deg, longitude from GPS
-  float gps_geoidSeperation; // m, wgs geodetic altitude
-  float gps_alt_msl; // m, mean sea level altitude
+  float geodetic_lat; // deg, geodetic latitude from GPS
+  float lon; // deg, longitude from GPS
+  float geoid_seperation; // m, wgs geodetic altitude
+  float alt_msl; // m, mean sea level altitude
   // then, alt_wgs84 = alt_msl + geoidSeperation
-  float gps_alt_wgs84; // m, altitude from ellipsoid
-  Vector3f pos_gps_ECEF; // m, position from gps, in ECEF
-  Vector3f pos_gps_ENU; // m, position from gps, in ENU
-
+  float alt_wgs84; // m, altitude from ellipsoid
+  
+  Vector3f r_ECEF; // m, position from gps, in ECEF
+  Vector3f r_ENU; // m, position from gps, in ENU
 };
 
 struct BMPData {
   unsigned long t_baro; // millisec, latest BMP aquired time
+  float p_baro; // Pa, atm pressure measured by BMP280.
   float h_baro; // m, pressure altitude measured by BMP280.
 };
 
@@ -133,8 +143,7 @@ class Navigation {
     void acc_imu_to_acc_cg();
     void acc_B_to_ENU();
 
-    float lat_geocent_to_geodet(float geocent_lat_rad); // convert geocentric latitude to geodetic latitude
-    void lla_to_ecef(); // convert gps lla to ecef
+    void lla_to_ECEF(); // convert gps lla to ecef
     void ecef_to_enu(); // calculate dcm for ecef to enu at launch site
 
   // def of body frame == bno055 body frame

@@ -54,28 +54,32 @@ void Navigation::acc_B_to_ENU() {
   return;
 }
 
-float Navigation::lat_geocent_to_geodet(float geocent_lat_rad) {
-  float f = fltn;
-  float geodet_lat_rad;
+void Navigation::lla_to_ECEF() {
+  float phi, lam, h;
 
-  geodet_lat_rad = atan2(tan(geocent_lat_rad), (1-f) * (1-f));
+  phi = gps.geodetic_lat * DEG_TO_RAD; // rad
+  lam = gps.lon * DEG_TO_RAD; // rad
+  h = gps.alt_wgs84; // m
 
-  return geodet_lat_rad; // rad
-}
+  float f, a_e, b_e, e_2;
+  f = earth.f; // flattening
+  a_e = earth.a_e; // m
+  e_2 = earth.e_2; // eccentricity squared
+  
+  float sinLam, cosLam, sinPhi, cosPhi;
+  sinLam = sin(lam);
+  cosLam = cos(lam);
+  sinPhi = sin(phi);
+  cosPhi = cos(phi);
 
-void Navigation::geodetic_lla_to_ECEF() {
-  float geodet_lat, lon, alt;
-  geodet_lat = pos_gps_lla[0]* DEG_TO_RAD; // rad
-  lon = pos_gps_lla[1]* DEG_TO_RAD; // rad
-  alt = pos_gps_lla[2]; // m
+  float N, h;
+  N = a_e / sqrt(1 - e_2 * sinLam * sinLam);
+  h = gps.alt_wgs84; // m
 
-  float f = fltn;
-  float b_e = a_e * (1 - f); // m
-  float r = a_e * a_e / sqrt(a_e * a_e + b_e * b_e * tan(geodet_lat) * tan(geodet_lat));
+  gps.r_ECEF(0) = (N + h) * cosPhi * cosLam; // m
+  gps.r_ECEF(1) = (N + h) * cosPhi * sinLam; // m
+  gps.r_ECEF(2) = ((1 - e_2)*N + h) * sinPhi;// m
 
-  pos_gps_ECEF[0] = (r + alt * cos(geodet_lat)) * cos(lon);
-  pos_gps_ECEF[1] = (r + alt * cos(geodet_lat)) * sin(lon);
-  pos_gps_ECEF[2] = (b_e * b_e / a_e / a_e) * tan(geodet_lat) * r + alt * sin(geodet_lat);
   return;
 }
 
