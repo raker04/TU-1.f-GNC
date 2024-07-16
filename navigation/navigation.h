@@ -2,6 +2,7 @@
 #define NAVIGATION_H
 
 #include "vector_util.h"
+#include "navigation_config.h"
 #include "SensorSet.h"
 
 struct ApogeeEstimate {
@@ -37,15 +38,13 @@ class Navigation {
 
     // private attributes
 
-    /* Manually Set Parameters Below (You can change below) */
+    /* Below parameters are calculated from the value specified in 'navigation_config.h' file. */
     // LPF parameters
-    const float alpha = 0.5; // y(n) = alpha * x(n) + (1-a) * y(n-1)
+    const float tau = 1 / (2 * PI * F_CUTOFF); // sec, time constant of the transfer function of the lpf
+    const float alpha = T_S / (tau + T_S); // y(n) = alpha * x(n) + (1-a) * y(n-1)
+    
     // TU-1.f configuration
-    const float m_dry = 3.7; // kg, dry mass of the vehicle after burnout
-    const float C_D0 = 0.3; // -, zero lift drag coefficient of the vehicle
-    const float d_ref = 104 * 0.001f; // m, reference length (diameter of fuselage)
-    const float S_ref = PI/4 * d_ref * d_ref; // m^2, reference area for aerodynamic coeff.
-    float r_imu_B[3] = {0.25, 0, 0}; // m, cg to imu poistion vector (in body frame)
+    float r_imu_B[3] = {IMU_CG_DIST, 0, 0}; // m, cg to imu poistion vector (in body frame)
     /* (You can change above) */
 
     /* Don't change below */
@@ -77,7 +76,7 @@ class Navigation {
     uint32_t t_AHRS_prev_msec = 0; // millisec, AHRS aquired time at previous time step
     float angular_rate_filtered_prev_B[3] = {0, 0, 0}; // rad/s, y(n-1) body angular rate in previous time step (in body frame)
     // should be measured
-    uint32_t t_AHRS_msec; // millisec, latest AHRS aquired time
+    uint32_t t_AHRS_msec = 0; // millisec, latest AHRS aquired time
     float* quat_ENU_to_B; // bno055 attitude quaternion from 'ENU' to 'initial body frame', [qx, qy, qz, qw]
     float* acc_imu_B; // m/s^2, linear acceleration felt by imu module (need to subtract centrifugal force) (in body frame)
     float* angular_rate_B; // rad/s, x(n) body angular rate (in body frame)

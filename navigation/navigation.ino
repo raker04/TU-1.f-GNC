@@ -254,7 +254,7 @@ ApogeeEstimate Navigation::getChudinovApogeeEst() {
   float r3; // m
   r3 = r_body_curr_ENU[2];
   float rho = 1.225 * exp(-r3/10.4/1000); // kg/m3
-  float k = rho * C_D0 * S_ref /2 / m_dry / g0;
+  float k = rho * C_D0 * S_REF /2 / M_DRY / g0;
 
   float vsqured;
   vsqured = v1*v1 + v2*v2 + v3*v3;
