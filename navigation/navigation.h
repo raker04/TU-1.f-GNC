@@ -2,6 +2,7 @@
 #define NAVIGATION_H
 
 #include "vector_util.h"
+#include "SensorSet.h"
 
 struct ApogeeEstimate {
   float t_apogee; // sec
@@ -9,30 +10,10 @@ struct ApogeeEstimate {
   float V_apogee; // m/s
 };
 
-struct SensorData {
-  // for bno055
-  unsigned long t_AHRS; // ms, last AHRS aquired time
-  float quat_ENU_to_B[4]; // [qx, qy, qz, qw]
-  float linear_acc[3]; // m/s^2, [ax, ay, az]
-  float angular_rate[3]; // rad/s, [p, q, r]
-
-   // for bmp280
-  unsigned long t_baro; // ms, last barometer aquried time
-  float p_baro; // Pa, atm pressure measured by bmp
-
-  // for GPS
-  unsigned long t_GPS; // ms, last GPS aquired time
-  float lat_deg; // deg
-  float lon_deg; // deg
-  float alt_orthometric; // m
-  float geoid_separation; // m
-};
-
-
 class Navigation {
   public:
     void initializeLaunchSiteConfig(float lat_deg, float lon_deg, float alt_orthometric_m, float geoid_separation_m, float atm_pressure_Pa, float atm_temp_K);
-    void update(SensorData newSensorData);
+    void update(SensorDataCollection& newSensorData);
     void getPosENU_m(float pos_ENU[3]);
     void getVelENU_ms(float vel_ENU[3]);
     float getAltENU_m(); // return altitude measured from the launch site (AGL)
@@ -41,12 +22,12 @@ class Navigation {
 
   private:
     // private methods
-    void updateSensorValues(SensorData newSensorData);
+    void updateSensorValues(SensorDataCollection& newSensorData);
     void updateNavigation(); // update and estimate the best navigation solution
     
-    void updateAHRSMeasurement(float t_ms, float q_ENU_to_B[4], float acc_imu_B_ms2[3], float angular_rate_B_rads[3]);
-    void updateBMPMeasurement(float t_ms, float p_baro_Pa);
-    void updateGPSMeasurement(float t_ms, float lat_deg, float lon_deg, float alt_orthometric_m, float geoid_separation_m);
+    void updateAHRSMeasurement(uint32_t t_ms, float* imu_data);
+    void updateBMPMeasurement(float p_baro_hPa);
+    void updateGPSMeasurement(float* gps_data);
     
     // helper functions
     void quat_to_DCM(float quat[4], float dcm[3][3]);
@@ -93,15 +74,15 @@ class Navigation {
     /* below variables are updated real-time during flight. */
     // AHRS data
     // should be transfered from the previous time step
-    unsigned long t_AHRS_prev_msec = 0; // millisec, AHRS aquired time at previous time step
+    uint32_t t_AHRS_prev_msec = 0; // millisec, AHRS aquired time at previous time step
     float angular_rate_filtered_prev_B[3] = {0, 0, 0}; // rad/s, y(n-1) body angular rate in previous time step (in body frame)
     // should be measured
-    unsigned long t_AHRS_msec; // millisec, latest AHRS aquired time
-    float quat_ENU_to_B[4]; // bno055 attitude quaternion from 'ENU' to 'initial body frame', [qx, qy, qz, qw]
-    float acc_imu_B[3]; // m/s^2, linear acceleration felt by imu module (need to subtract centrifugal force) (in body frame)
-    float angular_rate_B[3]; // rad/s, x(n) body angular rate (in body frame)
+    uint32_t t_AHRS_msec; // millisec, latest AHRS aquired time
+    float* quat_ENU_to_B; // bno055 attitude quaternion from 'ENU' to 'initial body frame', [qx, qy, qz, qw]
+    float* acc_imu_B; // m/s^2, linear acceleration felt by imu module (need to subtract centrifugal force) (in body frame)
+    float* angular_rate_B; // rad/s, x(n) body angular rate (in body frame)
     // should be calculated (derived)
-    unsigned int dt_AHRS_msec; // millisec, time step
+    uint32_t dt_AHRS_msec; // millisec, time step
     float dt_AHRS_sec; // sec, time step
     float dcm_ENU_to_B[3][3]; // dcm from ENU to body
     float dcm_B_to_ENU[3][3]; // dcm from body to ENU
@@ -112,7 +93,6 @@ class Navigation {
     
     // Barometer
     // should be measured
-    unsigned long t_baro_msec = 0; // millisec, latest BMP aquired time
     float p_baro = 101325; // Pa, atm pressure measured at altitude by BMP280
     // should be calculated (derived)
     float inc_h_baro = 0; // m, pressure altitude measured by BMP280.
@@ -120,11 +100,6 @@ class Navigation {
     // GPS
     bool isGPSUpdated = false; // true if new GPS message has arrived, false otherwise.
     // should be measured
-    unsigned long t_GPS_msec = 0; // millisec, latest GPS aquired time
-    float lat_deg_body = 36.371791; // deg, geodetic latitude of the vehicle from GPS
-    float lon_deg_body = 127.360112; // deg, longitude of the vehicle from GPS
-    float alt_orthometric_body = 0; // m, orthometric altitude of the vehicle from GPS
-    float geoid_separation_body = 0; // m, geoid separation at the vehicle from GPS
     // should be calculated (derived)
     float alt_wgs84_body = 0; // m, wgs84 altitude of the vehicle from GPS
     float r_body_gps_ECEF[3]; // m, position from gps, in ECEF

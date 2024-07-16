@@ -87,24 +87,17 @@ void Navigation::initializeLaunchSiteConfig(float lat_deg, float lon_deg, float 
   return;
 }
 
-void Navigation::updateAHRSMeasurement(float t_ms, float q_ENU_to_B[4], float acc_imu_B_ms2[3], float angular_rate_B_rads[3]) {
+void Navigation::updateAHRSMeasurement(uint32_t t_ms, float* imu_data) {
   t_AHRS_prev_msec = t_AHRS_msec;
   angular_rate_filtered_prev_B[0] = angular_rate_filtered_B[0];
   angular_rate_filtered_prev_B[1] = angular_rate_filtered_B[1];
   angular_rate_filtered_prev_B[2] = angular_rate_filtered_B[2];
 
-  // update AHRS measurement attributes
+  // update AHRS measurement attributes (copy pointer)
   t_AHRS_msec = t_ms;
-  quat_ENU_to_B[0] = q_ENU_to_B[0];
-  quat_ENU_to_B[1] = q_ENU_to_B[1];
-  quat_ENU_to_B[2] = q_ENU_to_B[2];
-  quat_ENU_to_B[3] = q_ENU_to_B[3];
-  acc_imu_B[0] = acc_imu_B_ms2[0];
-  acc_imu_B[1] = acc_imu_B_ms2[1];
-  acc_imu_B[2] = acc_imu_B_ms2[2];
-  angular_rate_B[0] = angular_rate_B_rads[0];
-  angular_rate_B[1] = angular_rate_B_rads[1];
-  angular_rate_B[2] = angular_rate_B_rads[2];
+  quat_ENU_to_B = imu_data + IMUSensor::QUAT_X;
+  acc_imu_B = imu_data + IMUSensor::ACC_X;
+  angular_rate_B = imu_data + IMUSensor::ANG_VEL_X;
 
   // calculate derived attributes
   dt_AHRS_msec = t_AHRS_msec - t_AHRS_prev_msec; // ms
@@ -135,34 +128,23 @@ void Navigation::updateAHRSMeasurement(float t_ms, float q_ENU_to_B[4], float ac
   return;
 }
 
-void Navigation::updateBMPMeasurement(float t_ms, float p_baro_Pa) {
-  t_baro_msec = t_ms;
-  p_baro = p_baro_Pa;
-
-  float T, p1;
-  T = atm_temp_launch_site; // K
-  p1 = atm_pressure_launch_site; // Pa
-
+void Navigation::updateBMPMeasurement(float p_baro_hPa) {
+  p_baro = p_baro_hPa * 100;
   // calculate altitude increment from pressure measurement
-  inc_h_baro = (R * T / g0) * log(p1 / p_baro); // m 
+  inc_h_baro = (R * atm_temp_launch_site / g0) * log(atm_pressure_launch_site / p_baro); // m 
 
   return;
 }
 
-void Navigation::updateGPSMeasurement(float t_ms, float lat_deg, float lon_deg, float alt_orthometric_m, float geoid_separation_m) {
-  isGPSUpdated = (abs(t_ms - t_GPS_msec) > 50);
+void Navigation::updateGPSMeasurement(float* gps_data) {
+  float new_wgs84_alt = gps_data[GPSSensor::ALTITUDE] + gps_data[GPSSensor::GEOID_HEIGHT];
+  isGPSUpdated = (new_wgs84_alt != alt_wgs84_body); // gps is updated if prev alt is different from the new alt
 
   if (!isGPSUpdated) return; // if gps is not updated simply just return.
 
-  t_GPS_msec = t_ms;
-  lat_deg_body = lat_deg;
-  lon_deg_body = lon_deg;
-  alt_orthometric_body = alt_orthometric_m;
-  geoid_separation_body = geoid_separation_m;
-
   // calculate derived attributes
-  alt_wgs84_body = alt_orthometric_body + geoid_separation_body;
-  lla_to_ECEF(lat_deg_body, lon_deg_body, alt_wgs84_body, r_body_gps_ECEF);
+  alt_wgs84_body = gps_data[GPSSensor::ALTITUDE] + gps_data[GPSSensor::GEOID_HEIGHT];
+  lla_to_ECEF(gps_data[GPSSensor::LATITUDE], gps_data[GPSSensor::LONGITUDE], alt_wgs84_body, r_body_gps_ECEF);
   r_body_rel_gps_ECEF[0] = r_body_gps_ECEF[0] - r_launch_site_ECEF[0];
   r_body_rel_gps_ECEF[1] = r_body_gps_ECEF[1] - r_launch_site_ECEF[1];
   r_body_rel_gps_ECEF[2] = r_body_gps_ECEF[2] - r_launch_site_ECEF[2];
@@ -171,16 +153,16 @@ void Navigation::updateGPSMeasurement(float t_ms, float lat_deg, float lon_deg, 
   return;
 }
 
-void Navigation::update(SensorData newSensorData) {
+void Navigation::update(SensorDataCollection& newSensorData) {
   updateSensorValues(newSensorData);
   updateNavigation();
   return;
 }
 
-void Navigation::updateSensorValues(SensorData newSensorData) {
-  updateAHRSMeasurement(newSensorData.t_AHRS, newSensorData.quat_ENU_to_B, newSensorData.linear_acc, newSensorData.angular_rate);
-  updateBMPMeasurement(newSensorData.t_baro, newSensorData.p_baro);
-  updateGPSMeasurement(newSensorData.t_GPS, newSensorData.lat_deg, newSensorData.lon_deg, newSensorData.alt_orthometric, newSensorData.geoid_separation);
+void Navigation::updateSensorValues(SensorDataCollection& newSensorData) {
+  updateAHRSMeasurement(newSensorData.current_time, newSensorData.imu_data);
+  updateBMPMeasurement(newSensorData.barometer_data[BarometerSensor::PRESSURE]);
+  updateGPSMeasurement(newSensorData.gps_data);
   return;
 }
 
