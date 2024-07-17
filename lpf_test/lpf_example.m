@@ -5,9 +5,10 @@ data = xlsread('gyro_signal_data.xls');
 Ts = 0.009994; % sec
 f_cutoff = 0.5; % Hz
 tau = 1 / 2/pi / f_cutoff; % time constant
-alpha = Ts / (tau + Ts)
+alpha = 0.2;
 
 N = length(data);
+N_sample = 50;
 
 t = data(:, 1); % sec
 gyro_x = data(:, 2); % rad/s
@@ -17,14 +18,43 @@ gyro_z = data(:, 4); % rad/s
 filtered_gyro_x = zeros(1, N);
 filtered_gyro_y = zeros(1, N);
 filtered_gyro_z = zeros(1, N);
-filtered_gyro_x(1) = gyro_x(1);
-filtered_gyro_y(1) = gyro_y(1);
-filtered_gyro_z(1) = gyro_z(1);
+temp_t = zeros(1,N_sample);
+temp_t2 = zeros(1,N_sample);
+temp_one = ones(1,N_sample);
+temp_x = zeros(1,N_sample);
+temp_y = zeros(1,N_sample);
+temp_z = zeros(1,N_sample);
+temp_t(1) = -2*t(1);
+temp_t(2) = -1*t(1);
+temp_t2(1) = 4*t(1)^2;
+temp_t2(2) = 1*t(1)^2;
 
-for i = 2:1:N
-    filtered_gyro_x(i) = alpha * gyro_x(i) + (1 - alpha) * filtered_gyro_x(i-1);
-    filtered_gyro_y(i) = alpha * gyro_y(i) + (1 - alpha) * filtered_gyro_y(i-1);
-    filtered_gyro_z(i) = alpha * gyro_z(i) + (1 - alpha) * filtered_gyro_z(i-1);
+
+for i = 1:1:N
+    for j = 1:N_sample-1
+        temp_t(j) = temp_t(j+1);
+        temp_t2(j) = temp_t2(j+1);
+        temp_x(j) = temp_x(j+1);
+        temp_y(j) = temp_y(j+1);
+        temp_z(j) = temp_z(j+1);
+    end
+    temp_t(N_sample) = t(i);
+    temp_t2(N_sample) = t(i)^2;
+    temp_x(N_sample) = gyro_x(i);
+    temp_y(N_sample) = gyro_y(i);
+    temp_z(N_sample) = gyro_z(i);
+    A = [temp_t2',temp_t',temp_one'];
+    B = [temp_x',temp_y',temp_z'];
+    X = inv(A'*A)*A'*B;
+    if i == 1
+        filtered_gyro_x(i) = X(1,1)*t(i)*t(i)+X(2,1)*t(i)+X(3,1);
+        filtered_gyro_y(i) = X(1,2)*t(i)*t(i)+X(2,2)*t(i)+X(3,2);
+        filtered_gyro_z(i) = X(1,3)*t(i)*t(i)+X(2,3)*t(i)+X(3,3);
+    else
+        filtered_gyro_x(i) = (X(1,1)*t(i)*t(i)+X(2,1)*t(i)+X(3,1))*(1-alpha)+filtered_gyro_x(i-1)*alpha;
+        filtered_gyro_y(i) = (X(1,2)*t(i)*t(i)+X(2,2)*t(i)+X(3,2))*(1-alpha)+filtered_gyro_y(i-1)*alpha;
+        filtered_gyro_z(i) = (X(1,3)*t(i)*t(i)+X(2,3)*t(i)+X(3,3))*(1-alpha)+filtered_gyro_z(i-1)*alpha;
+    end
 end
 
 figure;
