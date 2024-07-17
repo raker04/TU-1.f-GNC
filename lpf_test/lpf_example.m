@@ -18,6 +18,9 @@ gyro_z = data(:, 4); % rad/s
 filtered_gyro_x = zeros(1, N);
 filtered_gyro_y = zeros(1, N);
 filtered_gyro_z = zeros(1, N);
+diff_gyro_x = zeros(1, N);
+diff_gyro_y = zeros(1, N);
+diff_gyro_z = zeros(1, N);
 temp_t = zeros(1,N_sample);
 temp_t2 = zeros(1,N_sample);
 temp_one = ones(1,N_sample);
@@ -46,6 +49,11 @@ for i = 1:1:N
     A = [temp_t2',temp_t',temp_one'];
     B = [temp_x',temp_y',temp_z'];
     X = inv(A'*A)*A'*B;
+    A2 = [temp_t',temp_one'];
+    X2 = inv(A2'*A2)*A2'*B;
+    diff_gyro_x(i) = X2(1,1);
+    diff_gyro_y(i) = X2(1,2);
+    diff_gyro_z(i) = X2(1,3);
     if i == 1
         filtered_gyro_x(i) = X(1,1)*t(i)*t(i)+X(2,1)*t(i)+X(3,1);
         filtered_gyro_y(i) = X(1,2)*t(i)*t(i)+X(2,2)*t(i)+X(3,2);
@@ -62,16 +70,19 @@ subplot(3, 1, 1);
 hold on
 plot(t, gyro_x, 'DisplayName', 'gyro_x')
 plot(t, filtered_gyro_x, 'DisplayName', 'filtered_gyro_x')
+plot(t, diff_gyro_x, 'DisplayName', 'diff_gyro_x')
 legend show
 
 subplot(3, 1, 2);
 hold on
 plot(t, gyro_y, 'DisplayName', 'gyro_y')
 plot(t, filtered_gyro_y, 'DisplayName', 'filtered_gyro_y')
+plot(t, diff_gyro_y, 'DisplayName', 'diff_gyro_y')
 legend show
 
 subplot(3, 1, 3);
 hold on
 plot(t, gyro_z, 'DisplayName', 'gyro_z')
 plot(t, filtered_gyro_z, 'DisplayName', 'filtered_gyro_z')
+plot(t, diff_gyro_y, 'DisplayName', 'diff_gyro_y')
 legend show
