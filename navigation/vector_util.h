@@ -123,18 +123,13 @@ float matrixDet2(float A[2][2]){
 }
 
 void signalProcessFilter(float data[3],float processed[3],float diff[3],float *sample[4],int samplesize,int samplecount,float time,float prevprocessed[3],float tempmatrix1[3][3],float tempmatrix2[3][3],float tempmatrix3[2][2],float tempmatrix4[2][3],float alpha){
-  int legacycount;
   float legacytime,legacydata[3];
+  float tempmatrix5[3][3], tempmatrix6[2][2];
   float resultmatrix1[3][3], resultmatrix2[2][3];
-  if (samplecount == samplesize - 1){
-    legacycount = 0;
-  }else{
-    legacycount = samplecount+1;
-  }
-  legacytime = sample[0][legacycount];
-  legacydata[0] = sample[1][legacycount];
-  legacydata[1] = sample[2][legacycount];
-  legacydata[2] = sample[3][legacycount];
+  legacytime = sample[0][samplecount];
+  legacydata[0] = sample[1][samplecount];
+  legacydata[1] = sample[2][samplecount];
+  legacydata[2] = sample[3][samplecount];
   sample[0][samplecount] = time;
   sample[1][samplecount] = data[0];
   sample[2][samplecount] = data[1];
@@ -155,11 +150,13 @@ void signalProcessFilter(float data[3],float processed[3],float diff[3],float *s
       tempmatrix4[i][j] += pow(time,i)*data[j]-pow(legacytime,i)*legacydata[j];
     }
   }
+  matrixInverse3(tempmatrix1,tempmatrix5);
+  matrixInverse2(tempmatrix3,tempmatrix6);
   for(int i = 0;i < 3;i++){
     for(int j = 0;j < 3;j++){
       resultmatrix1[i][j] = 0;
       for(int k = 0;k < 3;k++){
-        resultmatrix1[i][j] += tempmatrix1[i][k]*tempmatrix2[k][j];
+        resultmatrix1[i][j] += tempmatrix5[i][k]*tempmatrix2[k][j];
       }
     }
   }
@@ -167,7 +164,7 @@ void signalProcessFilter(float data[3],float processed[3],float diff[3],float *s
     for(int j = 0;j < 3;j++){
       resultmatrix1[i][j] = 0;
       for(int k = 0;k < 2;k++){
-        resultmatrix2[i][j] += tempmatrix3[i][k]*tempmatrix4[k][j];
+        resultmatrix2[i][j] += tempmatrix6[i][k]*tempmatrix4[k][j];
       }
     }
   }
