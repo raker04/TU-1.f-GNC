@@ -14,7 +14,7 @@ void matrixInverse2(float A[2][2], float res[2][2]); // res = A^-1 but size is n
 void matrixSub(float A[3][3], float res[2][2], int x, int y); // res = M_x,y but flipped if x==1 or y==1
 float matrixDet3(float A[3][3]); //res = det(A)
 float matrixDet2(float A[2][2]); //res = det(A) but size is now 2
-void signalProcessFilter(float data[3],float *processed[3],float *diff[3],float *sample,int samplesize,int *samplecount,float time,float prevdata[3],float tempmatrix1[3][3],float tempmatrix2[3][3],float tempmatrix3[2][2],float tempmatrix4[2][3],float alpha); // grand design.
+void signalProcessFilter(float data[3],float *processed[3],float *diff[3],float *sample,int samplesize,int *samplecount,float time,float prevdata[3],float tempmatrix1[3][3],float tempmatrix2[3][3],float tempmatrix3[2][2],float tempmatrix4[2][3],float alpha,float beta); // grand design.
 
 // function definitions
 float dotProduct(float v_A[3], float v_B[3]) {
@@ -122,18 +122,22 @@ float matrixDet2(float A[2][2]){
   return A[0][0]*A[1][1] - A[1][0]*A[0][1];
 }
 
-void signalProcessFilter(float data[3],float processed[3],float diff[3],float *sample[4],int samplesize,int samplecount,float time,float prevprocessed[3],float tempmatrix1[3][3],float tempmatrix2[3][3],float tempmatrix3[2][2],float tempmatrix4[2][3],float alpha){
+void signalProcessFilter(float data[3],float processed[3],float diff[3],float *sample[4],int samplesize,int *samplecount,float time,float prevprocessed[3],float tempmatrix1[3][3],float tempmatrix2[3][3],float tempmatrix3[2][2],float tempmatrix4[2][3],float alpha,float beta){
   float legacytime,legacydata[3];
   float tempmatrix5[3][3], tempmatrix6[2][2];
   float resultmatrix1[3][3], resultmatrix2[2][3];
-  legacytime = sample[0][samplecount];
-  legacydata[0] = sample[1][samplecount];
-  legacydata[1] = sample[2][samplecount];
-  legacydata[2] = sample[3][samplecount];
-  sample[0][samplecount] = time;
-  sample[1][samplecount] = data[0];
-  sample[2][samplecount] = data[1];
-  sample[3][samplecount] = data[2];
+  legacytime = sample[0][*samplecount];
+  legacydata[0] = sample[1][*samplecount];
+  legacydata[1] = sample[2][*samplecount];
+  legacydata[2] = sample[3][*samplecount];
+  sample[0][*samplecount] = time;
+  sample[1][*samplecount] = data[0];
+  sample[2][*samplecount] = data[1];
+  sample[3][*samplecount] = data[2];
+  *samplecount++;
+  if(*samplecount > samplesize-1){
+    *samplecount = 0;
+  }
   for(int i = 0;i < 3;i++){
     for(int j = 0;j < 3;j++){
       tempmatrix1[i][j] += pow(time,i+j)-pow(legacytime,i+j);
@@ -171,7 +175,10 @@ void signalProcessFilter(float data[3],float processed[3],float diff[3],float *s
   for(int i = 0;i < 3;i++){
     processed[i] = 0;
     for(int j = 0;j < 3;j++){
-      processed[i] += (1-alpha)*resultmatrix1[j][i]*pow(time,j);
+      processed[i] += (1-alpha)*resultmatrix1[j][i]*pow(time,j)*(1-beta);
+    }
+    for(int j = 0;j < 2;j++){
+      processed[i] += (1-alpha)*beta*resultmatrix2[j][i]*pow(time,j);
     }
     processed[i] += alpha*prevprocessed[i];
   }
